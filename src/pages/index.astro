@@ -1,16 +1,122 @@
 ---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import SlugCard from '../components/SlugCard.astro';
+import { supabase } from '../lib/supabase';
+import type { SlugWithStats } from '../lib/types';
 
+// Fetch all slugs with their stats
+const { data: slugsData, error } = await supabase.rpc('get_slugs_with_stats');
+
+if (error) {
+  console.error('Error fetching slugs:', error);
+}
+
+const slugs: SlugWithStats[] = slugsData || [];
+
+// Separate slugs by status
+const slugsWithRecommendations = slugs.filter(s => !s.match && s.recommendation_count > 0);
+const slugsWithDocs = slugs.filter(s => s.match);
+const slugsInProgress = slugs.filter(s => s.analysis_status === 'in_progress');
+const slugsPending = slugs.filter(s => !s.match && s.recommendation_count === 0 && s.analysis_status !== 'in_progress');
+
+// Stats
+const totalSlugs = slugs.length;
+const totalRecommendations = slugs.reduce((acc, s) => acc + (s.recommendation_count || 0), 0);
+const highPriorityCount = slugs.reduce((acc, s) => acc + (s.high_priority_count || 0), 0);
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<Layout title="KB Recommendations - All Slugs">
+  <Header current="home" />
+
+  <main class="max-w-7xl mx-auto px-6">
+    <!-- Page Header -->
+    <div class="mb-8">
+      <h1 class="text-4xl font-semibold tracking-tight mb-4">Knowledge Base Recommendations</h1>
+      <p class="text-gray-500">
+        Overview of all ticket categories and their KB documentation status
+      </p>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 mb-8">
+      <div class="p-4 bg-white border border-gray-200 rounded-md">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Slugs</div>
+        <div class="text-2xl font-semibold">{totalSlugs}</div>
+      </div>
+      <div class="p-4 bg-white border border-gray-200 rounded-md">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Recommendations</div>
+        <div class="text-2xl font-semibold">{totalRecommendations}</div>
+      </div>
+      <div class="p-4 bg-white border border-gray-200 rounded-md">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">High Priority</div>
+        <div class="text-2xl font-semibold">{highPriorityCount}</div>
+      </div>
+      <div class="p-4 bg-white border border-gray-200 rounded-md">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">With KB Docs</div>
+        <div class="text-2xl font-semibold">{slugsWithDocs.length}</div>
+      </div>
+    </div>
+
+    <!-- Needs KB Articles (Priority) -->
+    {slugsWithRecommendations.length > 0 && (
+      <section class="mb-8">
+        <h2 class="text-2xl font-semibold mb-6">🔴 Needs KB Articles ({slugsWithRecommendations.length})</h2>
+        <div class="grid md:grid-cols-2 gap-6">
+          {slugsWithRecommendations
+            .sort((a, b) => (b.high_priority_count || 0) - (a.high_priority_count || 0))
+            .map((slug) => (
+              <SlugCard slug={slug} />
+            ))}
+        </div>
+      </section>
+    )}
+
+    <!-- In Progress -->
+    {slugsInProgress.length > 0 && (
+      <section class="mb-8">
+        <h2 class="text-2xl font-semibold mb-6">⏳ Analysis In Progress ({slugsInProgress.length})</h2>
+        <div class="grid md:grid-cols-2 gap-6">
+          {slugsInProgress.map((slug) => (
+            <SlugCard slug={slug} />
+          ))}
+        </div>
+      </section>
+    )}
+
+    <!-- Has KB Documentation -->
+    {slugsWithDocs.length > 0 && (
+      <section class="mb-8">
+        <h2 class="text-2xl font-semibold mb-6">✅ Has KB Documentation ({slugsWithDocs.length})</h2>
+        <div class="grid md:grid-cols-2 gap-6">
+          {slugsWithDocs.map((slug) => (
+            <SlugCard slug={slug} />
+          ))}
+        </div>
+      </section>
+    )}
+
+    <!-- Pending Analysis -->
+    {slugsPending.length > 0 && (
+      <section class="mb-8">
+        <h2 class="text-2xl font-semibold mb-6">⏸️ Pending Analysis ({slugsPending.length})</h2>
+        <div class="grid md:grid-cols-2 gap-6">
+          {slugsPending.map((slug) => (
+            <SlugCard slug={slug} />
+          ))}
+        </div>
+      </section>
+    )}
+
+    <!-- Empty State -->
+    {slugs.length === 0 && (
+      <div class="text-center py-16 px-8">
+        <div class="text-5xl mb-4 opacity-30">📋</div>
+        <h3 class="text-xl font-semibold mb-2">No slugs found</h3>
+        <p class="text-gray-500 text-sm">
+          Start analyzing tickets to generate recommendations
+        </p>
+      </div>
+    )}
+  </main>
+</Layout>

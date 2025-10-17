@@ -1,0 +1,267 @@
+---
+export const prerender = false;
+
+import Layout from '../../../layouts/Layout.astro';
+import Header from '../../../components/Header.astro';
+import { supabase } from '../../../lib/supabase';
+import type { Slug } from '../../../lib/types';
+import { marked } from 'marked';
+
+const { slug } = Astro.params;
+
+if (!slug) {
+  return Astro.redirect('/');
+}
+
+// Fetch slug info
+const { data: slugData, error: slugError } = await supabase
+  .from('Slugs')
+  .select('*')
+  .eq('slug', slug)
+  .single();
+
+if (slugError || !slugData) {
+  return Astro.redirect('/');
+}
+
+const slugInfo: Slug = slugData;
+
+// Calculate hit/miss status
+const hasMatch = slugInfo.match === true;
+const matchedDocs = slugInfo.matched_documents || [];
+const matchedDocsArray = Array.isArray(matchedDocs) ? matchedDocs : [];
+---
+
+<Layout title={`${slug} - Hit/Miss Report`}>
+  <Header />
+
+  <main class="max-w-3xl mx-auto px-6">
+    <!-- Back Button -->
+    <div class="mb-6">
+      <a
+        href="/"
+        class="inline-flex items-center justify-center px-4 py-2 bg-transparent hover:bg-gray-100 rounded-md text-sm font-medium transition-colors"
+      >
+        ← Back to All Slugs
+      </a>
+    </div>
+
+    <!-- Slug Header -->
+    <div class="mb-8">
+      <div class="flex items-center gap-4 mb-4 flex-wrap">
+        <h1 class="text-4xl font-semibold tracking-tight">{slug}</h1>
+        {hasMatch && (
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-50 text-green-600">
+            HIT
+          </span>
+        )}
+        {!hasMatch && (
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-50 text-red-600">
+            MISS
+          </span>
+        )}
+      </div>
+
+      <!-- Tab Navigation -->
+      <div class="flex gap-1 border-b border-gray-200 mb-6">
+        <a
+          href={`/slug/${slug}`}
+          class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300 transition-colors"
+        >
+          Recommendations
+        </a>
+        <a
+          href={`/slug/${slug}/report`}
+          class="px-4 py-2 text-sm font-medium border-b-2 border-blue-500 text-blue-600"
+        >
+          Hit/Miss Report
+        </a>
+      </div>
+    </div>
+
+    <!-- Report Overview -->
+    <section class="mb-8">
+      <div class="bg-white border border-gray-200 rounded-lg p-6">
+        <h2 class="text-2xl font-semibold mb-6">Report Overview</h2>
+
+        <div class="grid md:grid-cols-2 gap-6 mb-6">
+          <!-- Status Card -->
+          <div class="p-6 bg-gray-50 rounded-lg">
+            <div class="text-sm text-gray-500 uppercase tracking-wide mb-2">Status</div>
+            <div class="flex items-center gap-3">
+              {hasMatch ? (
+                <>
+                  <div class="text-4xl">✅</div>
+                  <div>
+                    <div class="text-2xl font-semibold text-green-600">HIT</div>
+                    <div class="text-sm text-gray-600">KB Documentation Found</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div class="text-4xl">❌</div>
+                  <div>
+                    <div class="text-2xl font-semibold text-red-600">MISS</div>
+                    <div class="text-sm text-gray-600">No KB Documentation</div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <!-- Ticket Count Card -->
+          <div class="p-6 bg-gray-50 rounded-lg">
+            <div class="text-sm text-gray-500 uppercase tracking-wide mb-2">Total Tickets</div>
+            <div class="text-4xl font-semibold">{slugInfo.ticket_count}</div>
+            <div class="text-sm text-gray-600 mt-2">
+              {slugInfo.first_seen && `First seen: ${new Date(slugInfo.first_seen).toLocaleDateString()}`}
+            </div>
+          </div>
+        </div>
+
+        <!-- KB Searches -->
+        {slugInfo.matched_search && (
+          <div class="border-t border-gray-200 pt-6">
+            <h3 class="text-sm font-semibold mb-3">KB Searches Performed</h3>
+            <div class="p-4 bg-gray-50 rounded font-mono text-sm">
+              {slugInfo.matched_search}
+            </div>
+            {slugInfo.last_matched && (
+              <div class="text-xs text-gray-500 mt-2">
+                Last searched: {new Date(slugInfo.last_matched).toLocaleString()}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+
+    <!-- Matched Documents Section -->
+    {hasMatch && matchedDocsArray.length > 0 ? (
+      <section class="mb-8">
+        <h2 class="text-2xl font-semibold mb-6">Matched KB Documents ({matchedDocsArray.length})</h2>
+        <div class="space-y-4">
+          {matchedDocsArray.map((doc: any, index: number) => (
+            <div class="bg-white border border-gray-200 rounded-lg p-6">
+              <!-- Document Header -->
+              <div class="flex items-start justify-between mb-4">
+                <div class="flex-1">
+                  <div class="flex items-center gap-3 mb-2">
+                    <span class="text-2xl font-semibold text-gray-400">#{index + 1}</span>
+                    <h3 class="text-lg font-semibold">{doc.name || 'Untitled Document'}</h3>
+                  </div>
+                  {doc.url && (
+                    <a
+                      href={doc.url}
+                      class="text-sm text-blue-600 hover:underline inline-flex items-center gap-1"
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      View Document →
+                    </a>
+                  )}
+                </div>
+                {doc.relevance && (
+                  <span
+                    class:list={[
+                      'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium',
+                      doc.relevance === 'high' && 'bg-green-50 text-green-600',
+                      doc.relevance === 'medium' && 'bg-amber-50 text-amber-600',
+                      doc.relevance === 'low' && 'bg-gray-50 text-gray-500'
+                    ]}
+                  >
+                    {doc.relevance.toUpperCase()} RELEVANCE
+                  </span>
+                )}
+              </div>
+
+              <!-- Coverage Score -->
+              {doc.coverage_score && (
+                <div class="mb-4 p-4 bg-gray-50 rounded-md">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">Coverage Score</span>
+                    <span class="text-lg font-semibold">{doc.coverage_score}/10</span>
+                  </div>
+                  <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      class="h-full bg-blue-500 transition-all"
+                      style={`width: ${(doc.coverage_score / 10) * 100}%`}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              <!-- Reason -->
+              {doc.reason && (
+                <div class="mb-4">
+                  <h4 class="text-sm font-semibold mb-2">Why This Document Matches</h4>
+                  <div class="prose prose-sm max-w-none text-[15px] text-gray-700" set:html={marked.parse(doc.reason, { async: false })} />
+                </div>
+              )}
+
+              <!-- Gaps -->
+              {doc.gaps && (
+                <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <h4 class="text-sm font-semibold text-yellow-800 mb-2">⚠️ Coverage Gaps</h4>
+                  <div class="prose prose-sm max-w-none text-[15px] text-yellow-700" set:html={marked.parse(doc.gaps, { async: false })} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+    ) : hasMatch && matchedDocsArray.length === 0 ? (
+      <section class="mb-8">
+        <div class="bg-white border border-gray-200 rounded-lg p-8 text-center">
+          <div class="text-4xl mb-3">📄</div>
+          <h3 class="text-lg font-semibold mb-2">Marked as Hit</h3>
+          <p class="text-gray-600 text-sm">
+            This slug is marked as having KB documentation, but no specific documents were recorded.
+          </p>
+        </div>
+      </section>
+    ) : (
+      <!-- Miss State -->
+      <section class="mb-8">
+        <div class="bg-white border border-gray-200 rounded-lg p-8 text-center">
+          <div class="text-5xl mb-4">🔍</div>
+          <h3 class="text-xl font-semibold mb-2">No KB Documentation Found</h3>
+          <p class="text-gray-600 text-sm mb-4">
+            This slug does not have matching KB documentation. Consider creating new documentation or checking the recommendations tab.
+          </p>
+          <a
+            href={`/slug/${slug}`}
+            class="inline-flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+          >
+            View Recommendations
+          </a>
+        </div>
+      </section>
+    )}
+
+    <!-- Metadata -->
+    <section>
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+        <h3 class="text-sm font-semibold mb-4">Metadata</h3>
+        <dl class="grid md:grid-cols-2 gap-4 text-sm">
+          <div>
+            <dt class="text-gray-500 mb-1">First Seen</dt>
+            <dd class="font-medium">{slugInfo.first_seen ? new Date(slugInfo.first_seen).toLocaleString() : 'N/A'}</dd>
+          </div>
+          <div>
+            <dt class="text-gray-500 mb-1">Last Seen</dt>
+            <dd class="font-medium">{slugInfo.last_seen ? new Date(slugInfo.last_seen).toLocaleString() : 'N/A'}</dd>
+          </div>
+          <div>
+            <dt class="text-gray-500 mb-1">Total Tickets</dt>
+            <dd class="font-medium">{slugInfo.ticket_count}</dd>
+          </div>
+          <div>
+            <dt class="text-gray-500 mb-1">Last Matched</dt>
+            <dd class="font-medium">{slugInfo.last_matched ? new Date(slugInfo.last_matched).toLocaleString() : 'Never'}</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+  </main>
+</Layout>

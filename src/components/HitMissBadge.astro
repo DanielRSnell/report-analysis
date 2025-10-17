@@ -1,0 +1,16 @@
+---
+interface Props {
+  hit: boolean;
+}
+
+const { hit } = Astro.props;
+---
+
+<span
+  class:list={[
+    'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium',
+    hit ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+  ]}
+>
+  {hit ? 'HIT' : 'MISS'}
+</span>

@@ -1,0 +1,19 @@
+---
+interface Props {
+  priority: string;
+}
+
+const { priority } = Astro.props;
+const priorityLower = priority.toLowerCase();
+---
+
+<span
+  class:list={[
+    'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium',
+    priorityLower === 'high' && 'bg-red-50 text-red-600',
+    priorityLower === 'medium' && 'bg-amber-50 text-amber-600',
+    priorityLower === 'low' && 'bg-gray-50 text-gray-500'
+  ]}
+>
+  {priority.toUpperCase()}
+</span>

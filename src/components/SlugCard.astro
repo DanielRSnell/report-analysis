@@ -1,0 +1,101 @@
+---
+import type { SlugWithStats } from '../lib/types';
+
+interface Props {
+  slug: SlugWithStats;
+}
+
+const { slug } = Astro.props;
+---
+
+<a
+  href={`/slug/${slug.slug}`}
+  class="block bg-white border border-gray-200 rounded-lg p-6 transition-all hover:border-gray-400 hover:shadow-md no-underline text-gray-900"
+>
+  <div class="mb-4">
+    <div class="flex items-start gap-3 mb-4">
+      <h3 class="text-xl font-semibold break-words flex-1 min-w-0">{slug.slug}</h3>
+      {slug.match && (
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-50 text-green-600 whitespace-nowrap shrink-0">
+          Has KB Docs
+        </span>
+      )}
+      {!slug.match && slug.recommendation_count > 0 && (
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-50 text-red-600 whitespace-nowrap shrink-0">
+          Needs KB Article
+        </span>
+      )}
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <div class="grid grid-cols-3 gap-4 mb-4">
+      <div class="p-4 bg-white border border-gray-200 rounded-md">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Tickets</div>
+        <div class="text-2xl font-semibold">{slug.ticket_count}</div>
+      </div>
+      <div class="p-4 bg-white border border-gray-200 rounded-md">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Sections</div>
+        <div class="text-2xl font-semibold">{slug.total_sections || 0}</div>
+      </div>
+      <div class="p-4 bg-white border border-gray-200 rounded-md">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Analyzed</div>
+        <div class="text-2xl font-semibold">{slug.total_tickets_analyzed || 0}</div>
+      </div>
+    </div>
+
+    {!slug.match && slug.recommendation_count > 0 && (
+      <div class="mb-3 overflow-hidden">
+        <div class="flex flex-wrap gap-2 items-center -mx-1">
+          {slug.high_priority_count > 0 && (
+            <span class="inline-flex items-center px-2.5 py-1 mx-1 rounded-full text-xs font-medium bg-red-50 text-red-600 whitespace-nowrap">
+              {slug.high_priority_count} High Priority
+            </span>
+          )}
+          {slug.medium_priority_count > 0 && (
+            <span class="inline-flex items-center px-2.5 py-1 mx-1 rounded-full text-xs font-medium bg-amber-50 text-amber-600 whitespace-nowrap">
+              {slug.medium_priority_count} Medium
+            </span>
+          )}
+          {slug.low_priority_count > 0 && (
+            <span class="inline-flex items-center px-2.5 py-1 mx-1 rounded-full text-xs font-medium bg-green-50 text-green-600 whitespace-nowrap">
+              {slug.low_priority_count} Low
+            </span>
+          )}
+        </div>
+      </div>
+    )}
+
+    <div class="flex items-center justify-between text-sm">
+      {slug.avg_confidence && (
+        <div class="text-gray-500">
+          <span>Avg Confidence: </span>
+          <span class="font-mono font-medium">{slug.avg_confidence.toFixed(1)}/10</span>
+        </div>
+      )}
+      {slug.recommendation_count > 0 && (
+        <div class="px-3 py-1.5 bg-blue-50 rounded-md">
+          <span class="text-blue-900 font-semibold">{slug.recommendation_count}</span>
+          <span class="text-blue-700 text-xs ml-1">Recommendation{slug.recommendation_count !== 1 ? 's' : ''}</span>
+        </div>
+      )}
+    </div>
+  </div>
+
+  <div class="flex justify-between items-center pt-4 border-t border-gray-200">
+    {slug.analysis_status && (
+      <span
+        class:list={[
+          'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium',
+          slug.analysis_status === 'completed' && 'bg-green-50 text-green-600',
+          slug.analysis_status === 'in_progress' && 'bg-amber-50 text-amber-600',
+          slug.analysis_status === 'failed' && 'bg-red-50 text-red-600',
+          !['completed', 'in_progress', 'failed'].includes(slug.analysis_status) && 'bg-gray-50 text-gray-500'
+        ]}
+      >
+        {slug.analysis_status.replace('_', ' ')}
+      </span>
+    )}
+    <span class="text-sm text-gray-500">View Details →</span>
+  </div>
+</a>

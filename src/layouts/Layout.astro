@@ -1,0 +1,71 @@
+---
+import { ViewTransitions } from 'astro:transitions';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'KB Recommendation Report Generator' } = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <link rel="stylesheet" href="/src/styles/global.css" />
+    <ViewTransitions />
+    <style>
+      #app {
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+      }
+      #app.loaded {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50">
+    <div id="app">
+      <slot />
+    </div>
+    <script>
+      // Check authentication on client side
+      async function checkAuth() {
+        // Skip check if on login page
+        if (window.location.pathname === '/login') {
+          document.getElementById('app')?.classList.add('loaded');
+          return;
+        }
+
+        try {
+          // Make a quick check to the server to verify session
+          const response = await fetch('/api/auth/check', {
+            method: 'GET',
+            credentials: 'same-origin'
+          });
+
+          if (response.ok) {
+            // User is authenticated, show content
+            document.getElementById('app')?.classList.add('loaded');
+          } else {
+            // Not authenticated, redirect to login
+            window.location.href = '/login';
+          }
+        } catch (error) {
+          // On error, redirect to login
+          window.location.href = '/login';
+        }
+      }
+
+      // Run auth check on page load
+      checkAuth();
+
+      // Re-check on navigation (for View Transitions)
+      document.addEventListener('astro:page-load', checkAuth);
+    </script>
+  </body>
+</html>

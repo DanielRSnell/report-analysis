@@ -1,0 +1,204 @@
+---
+import type { RecommendationDetail } from '../lib/types';
+import { marked } from 'marked';
+
+interface Props {
+  recommendation: RecommendationDetail;
+}
+
+const { recommendation } = Astro.props;
+
+// Parse markdown content
+const parseMarkdown = (content: string) => {
+  return marked.parse(content, { async: false });
+};
+---
+
+<div class="bg-white border border-gray-200 rounded-lg p-6 mb-8">
+  <div class="mb-4">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-xl font-semibold">{recommendation.title}</h3>
+      <span
+        class:list={[
+          'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium',
+          recommendation.priority === 'high' && 'bg-red-50 text-red-600',
+          recommendation.priority === 'medium' && 'bg-amber-50 text-amber-600',
+          recommendation.priority === 'low' && 'bg-green-50 text-green-600',
+          !['high', 'medium', 'low'].includes(recommendation.priority) && 'bg-gray-50 text-gray-500'
+        ]}
+      >
+        {recommendation.priority.toUpperCase()}
+      </span>
+    </div>
+
+    {recommendation.ticket_pattern && (
+      <p class="text-gray-500 text-sm">{recommendation.ticket_pattern}</p>
+    )}
+  </div>
+
+  <div class="mb-4">
+    <!-- Stats -->
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 mb-6">
+      <div class="p-4 bg-gray-50 rounded-md">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Confidence</div>
+        <div class="text-2xl font-semibold">{recommendation.confidence_score}/10</div>
+      </div>
+      <div class="p-4 bg-gray-50 rounded-md">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Sections</div>
+        <div class="text-2xl font-semibold">{recommendation.sections.length}</div>
+      </div>
+      <div class="p-4 bg-gray-50 rounded-md">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Source Tickets</div>
+        <div class="text-2xl font-semibold">{recommendation.source_tickets.length}</div>
+      </div>
+      {recommendation.frequency_data?.ticket_count && (
+        <div class="p-4 bg-gray-50 rounded-md">
+          <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Ticket Count</div>
+          <div class="text-2xl font-semibold">{recommendation.frequency_data.ticket_count}</div>
+        </div>
+      )}
+    </div>
+
+    <!-- Frequency Data -->
+    {recommendation.frequency_data && (
+      <div class="border-t border-gray-200 pt-4 mb-6">
+        <h4 class="text-base font-semibold mb-4">Impact</h4>
+        <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+          {recommendation.frequency_data.tickets_per_month && (
+            <div>
+              <span class="text-sm text-gray-500">Monthly Volume: </span>
+              <span class="text-sm font-mono">{recommendation.frequency_data.tickets_per_month}/month</span>
+            </div>
+          )}
+          {recommendation.frequency_data.trend && (
+            <div>
+              <span class="text-sm text-gray-500">Trend: </span>
+              <span class="text-sm">{recommendation.frequency_data.trend}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+
+    <!-- Keywords -->
+    {recommendation.keywords && recommendation.keywords.length > 0 && (
+      <div class="border-t border-gray-200 pt-4 mb-6">
+        <h4 class="text-base font-semibold mb-4">Keywords</h4>
+        <div class="flex flex-wrap gap-2">
+          {recommendation.keywords.map((keyword) => (
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-500">
+              {keyword}
+            </span>
+          ))}
+        </div>
+      </div>
+    )}
+
+    <!-- Affected User Groups -->
+    {recommendation.affected_user_groups && recommendation.affected_user_groups.length > 0 && (
+      <div class="border-t border-gray-200 pt-4 mb-6">
+        <h4 class="text-base font-semibold mb-4">Affected User Groups</h4>
+        <div class="flex flex-wrap gap-2">
+          {recommendation.affected_user_groups.map((group) => (
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-500">
+              {group}
+            </span>
+          ))}
+        </div>
+      </div>
+    )}
+
+    <!-- Sections -->
+    <div class="border-t border-gray-200 pt-4 mb-6">
+      <h4 class="text-base font-semibold mb-4">Content Sections ({recommendation.sections.length})</h4>
+      <ol class="list-none space-y-8 counter-reset-section">
+        {recommendation.sections
+          .sort((a, b) => a.section_number - b.section_number)
+          .map((section, index) => (
+            <li class="pb-8 border-b border-gray-200 last:border-0">
+              <div class="flex items-baseline gap-2 mb-3">
+                <span class="text-sm font-semibold text-blue-500">{index + 1}.</span>
+                <span class="text-lg font-semibold flex-1">{section.section_title}</span>
+                {section.section_type && (
+                  <span class="text-xs text-gray-500 uppercase tracking-wide ml-auto">
+                    {section.section_type}
+                  </span>
+                )}
+              </div>
+              <div class="prose prose-sm max-w-none text-[15px]" set:html={parseMarkdown(section.content_outline)} />
+              <div class="space-y-2 mt-3 text-[13px] text-gray-500">
+                {section.source_info && (
+                  <div>
+                    <div><strong>Source:</strong></div>
+                    <div>{section.source_info}</div>
+                  </div>
+                )}
+                {section.estimated_time && (
+                  <div>
+                    <div><strong>Est. Time:</strong></div>
+                    <div>{section.estimated_time}</div>
+                  </div>
+                )}
+              </div>
+            </li>
+          ))}
+      </ol>
+    </div>
+
+    <!-- Source Tickets -->
+    <div class="border-t border-gray-200 pt-4 mb-6">
+      <h4 class="text-base font-semibold mb-4">Source Tickets ({recommendation.source_tickets.length})</h4>
+      <ul class="list-none space-y-2">
+        {recommendation.source_tickets
+          .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
+          .map((ticket) => (
+            <li class="flex justify-between items-center px-3 py-3 bg-gray-50 rounded">
+              <span class="font-mono text-sm font-medium">#{ticket.ticket_id}</span>
+              <div class="flex gap-4 items-center text-xs text-gray-500">
+                {ticket.contribution_type && (
+                  <span>{ticket.contribution_type}</span>
+                )}
+                {ticket.relevance_score && (
+                  <span>Relevance: {ticket.relevance_score}/10</span>
+                )}
+              </div>
+            </li>
+          ))}
+      </ul>
+    </div>
+
+    <!-- Analyst Notes -->
+    {recommendation.analyst_notes && (
+      <div class="border-t border-gray-200 pt-4">
+        <h4 class="text-base font-semibold mb-4">Analyst Notes</h4>
+        <div class="p-4 bg-gray-50 rounded-md prose prose-sm max-w-none text-[15px]" set:html={parseMarkdown(recommendation.analyst_notes)} />
+      </div>
+    )}
+
+    <!-- Related Slugs -->
+    {recommendation.related_slugs && recommendation.related_slugs.length > 0 && (
+      <div class="border-t border-gray-200 pt-4 mt-6">
+        <h4 class="text-base font-semibold mb-4">Related Slugs</h4>
+        <div class="flex flex-wrap gap-2">
+          {recommendation.related_slugs.map((relatedSlug) => (
+            <a
+              href={`/slug/${relatedSlug}`}
+              class="inline-flex items-center justify-center px-4 py-2 bg-transparent hover:bg-gray-100 rounded-md text-sm font-medium transition-colors"
+            >
+              {relatedSlug}
+            </a>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+
+  <div class="flex justify-between items-center pt-4 border-t border-gray-200">
+    <div class="text-xs text-gray-500">
+      Created: {new Date(recommendation.created_at).toLocaleDateString()}
+    </div>
+    <div class="text-xs text-gray-500">
+      Status: {recommendation.status}
+    </div>
+  </div>
+</div>

@@ -1,0 +1,22 @@
+---
+interface Props {
+  current: number;
+  total: number;
+}
+
+const { current, total } = Astro.props;
+const percentage = total > 0 ? (current / total) * 100 : 0;
+---
+
+<div class="mb-4">
+  <div class="flex justify-between mb-2">
+    <span class="text-sm text-gray-500">{current} of {total} tickets analyzed</span>
+    <span class="text-sm font-mono">{percentage.toFixed(1)}%</span>
+  </div>
+  <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+    <div
+      class="h-full bg-blue-500 transition-all duration-300"
+      style={`width: ${percentage}%`}
+    ></div>
+  </div>
+</div>

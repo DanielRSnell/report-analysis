@@ -1,0 +1,200 @@
+---
+export const prerender = false;
+
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import HitMissBadge from '../../components/HitMissBadge.astro';
+import { supabase } from '../../lib/supabase';
+
+// Fetch overview stats
+const { data: reviews } = await supabase
+  .from('tickets_reviewed')
+  .select('kb_hit, created_at, related_ticket_count');
+
+const totalReviewed = reviews?.length || 0;
+const hitCount = reviews?.filter(r => r.kb_hit === true).length || 0;
+const missCount = reviews?.filter(r => r.kb_hit === false).length || 0;
+const hitRate = totalReviewed > 0 ? ((hitCount / totalReviewed) * 100).toFixed(1) : 0;
+const missRate = totalReviewed > 0 ? ((missCount / totalReviewed) * 100).toFixed(1) : 0;
+
+// Fetch recommendations stats
+const { data: recommendations } = await supabase
+  .from('ticket_kb_content_recommendations')
+  .select('priority, status');
+
+const totalRecs = recommendations?.length || 0;
+const highPriority = recommendations?.filter(r => r.priority === 'high').length || 0;
+const mediumPriority = recommendations?.filter(r => r.priority === 'medium').length || 0;
+const lowPriority = recommendations?.filter(r => r.priority === 'low').length || 0;
+
+const draftCount = recommendations?.filter(r => r.status === 'draft').length || 0;
+const reviewedCount = recommendations?.filter(r => r.status === 'reviewed').length || 0;
+const approvedCount = recommendations?.filter(r => r.status === 'approved').length || 0;
+const publishedCount = recommendations?.filter(r => r.status === 'published').length || 0;
+
+// Fetch recent activity
+const { data: recentReviews } = await supabase
+  .from('tickets_reviewed')
+  .select('id, ticket_id, slug, kb_hit, created_at, Tickets(Subject)')
+  .order('created_at', { ascending: false })
+  .limit(20);
+---
+
+<Layout title="Ticket Analysis Dashboard">
+  <Header current="ticket-analysis" />
+
+  <main class="max-w-7xl mx-auto px-6">
+    <div class="mb-8">
+      <h1 class="text-4xl font-semibold tracking-tight mb-2">Ticket Analysis Dashboard</h1>
+      <p class="text-gray-600">Overview of all ticket analysis activity</p>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="grid md:grid-cols-3 gap-4 mb-8">
+      <a href="/ticket-analysis/reviewed" class="block p-6 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+        <div class="text-sm text-gray-500 mb-1">Reviewed Tickets</div>
+        <div class="text-3xl font-semibold">{totalReviewed}</div>
+      </a>
+      <a href="/ticket-analysis/recommendations" class="block p-6 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+        <div class="text-sm text-gray-500 mb-1">Recommendations</div>
+        <div class="text-3xl font-semibold">{totalRecs}</div>
+      </a>
+      <div class="p-6 bg-white border border-gray-200 rounded-lg">
+        <div class="text-sm text-gray-500 mb-1">High Priority</div>
+        <div class="text-3xl font-semibold text-red-600">{highPriority}</div>
+      </div>
+    </div>
+
+    <!-- Hit/Miss Statistics -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-semibold mb-4">KB Coverage</h2>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-white border border-gray-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold mb-4">Hit/Miss Rate</h3>
+          <div class="space-y-4">
+            <div>
+              <div class="flex justify-between mb-2">
+                <span class="text-sm text-gray-600">KB Hits</span>
+                <span class="text-sm font-mono font-semibold text-green-600">{hitRate}%</span>
+              </div>
+              <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full bg-green-500" style={`width: ${hitRate}%`}></div>
+              </div>
+              <div class="text-xs text-gray-500 mt-1">{hitCount} tickets</div>
+            </div>
+            <div>
+              <div class="flex justify-between mb-2">
+                <span class="text-sm text-gray-600">KB Misses</span>
+                <span class="text-sm font-mono font-semibold text-red-600">{missRate}%</span>
+              </div>
+              <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full bg-red-500" style={`width: ${missRate}%`}></div>
+              </div>
+              <div class="text-xs text-gray-500 mt-1">{missCount} tickets</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold mb-4">Recommendations by Priority</h3>
+          <div class="space-y-3">
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-600">High Priority</span>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold">{highPriority}</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">HIGH</span>
+              </div>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-600">Medium Priority</span>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold">{mediumPriority}</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-600">MEDIUM</span>
+              </div>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-600">Low Priority</span>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold">{lowPriority}</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-50 text-gray-500">LOW</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recommendations by Status -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-semibold mb-4">Recommendations by Status</h2>
+      <div class="grid md:grid-cols-4 gap-4">
+        <div class="p-6 bg-white border border-gray-200 rounded-lg">
+          <div class="text-xs text-gray-500 uppercase tracking-wide mb-2">Draft</div>
+          <div class="text-3xl font-semibold">{draftCount}</div>
+        </div>
+        <div class="p-6 bg-white border border-amber-200 rounded-lg">
+          <div class="text-xs text-amber-600 uppercase tracking-wide mb-2">In Review</div>
+          <div class="text-3xl font-semibold text-amber-700">{reviewedCount}</div>
+        </div>
+        <div class="p-6 bg-white border border-green-200 rounded-lg">
+          <div class="text-xs text-green-600 uppercase tracking-wide mb-2">Approved</div>
+          <div class="text-3xl font-semibold text-green-700">{approvedCount}</div>
+        </div>
+        <div class="p-6 bg-white border border-blue-200 rounded-lg">
+          <div class="text-xs text-blue-600 uppercase tracking-wide mb-2">Published</div>
+          <div class="text-3xl font-semibold text-blue-700">{publishedCount}</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recent Activity -->
+    <section class="mb-8">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-semibold">Recent Activity</h2>
+        <a href="/ticket-analysis/reviewed" class="text-sm text-blue-600 hover:underline">View All →</a>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        {recentReviews && recentReviews.length > 0 ? (
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket ID</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+              {recentReviews.map((review: any) => (
+                <tr class="hover:bg-gray-50 transition-colors">
+                  <td class="px-6 py-4">
+                    <a href={`/ticket-analysis/reviewed/${review.id}`} class="font-mono text-sm text-blue-600 hover:underline">
+                      #{review.ticket_id}
+                    </a>
+                  </td>
+                  <td class="px-6 py-4 text-sm text-gray-900 max-w-md truncate">
+                    {review.Tickets?.Subject || 'N/A'}
+                  </td>
+                  <td class="px-6 py-4 text-sm">
+                    <span class="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{review.slug}</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <HitMissBadge hit={review.kb_hit} />
+                  </td>
+                  <td class="px-6 py-4 text-sm text-gray-500">
+                    {new Date(review.created_at).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div class="p-8 text-center text-gray-500">
+            <p>No reviewed tickets yet</p>
+          </div>
+        )}
+      </div>
+    </section>
+  </main>
+</Layout>

@@ -1,0 +1,250 @@
+---
+export const prerender = false;
+
+import Layout from '../../../layouts/Layout.astro';
+import Header from '../../../components/Header.astro';
+import HitMissBadge from '../../../components/HitMissBadge.astro';
+import { supabase } from '../../../lib/supabase';
+import { marked } from 'marked';
+
+const { id } = Astro.params;
+
+if (!id) {
+  return Astro.redirect('/ticket-analysis/reviewed');
+}
+
+// Helper function to clean up ticket text
+const cleanTicketText = (text: string) => {
+  if (!text) return '';
+
+  return text
+    // Remove inline image references like [cid:image002.png@01DB928F.D24F90D0]
+    .replace(/\[cid:[^\]]+\]/g, '')
+    // Remove email headers (From:, To:, Cc:, Subject:, Sent:)
+    .replace(/^(From|To|Cc|Subject|Sent):\s*.+$/gm, '')
+    // Remove standalone URLs that are just clutter
+    .replace(/^https?:\/\/[^\s]+$/gm, '')
+    // Remove mailto links
+    .replace(/<mailto:[^>]+>/g, '')
+    // Remove excessive newlines (more than 2 consecutive)
+    .replace(/\n{3,}/g, '\n\n')
+    // Clean up common signature separators
+    .replace(/_{20,}/g, '')
+    .trim();
+};
+
+// Fetch review with ticket details
+const { data: review, error } = await supabase
+  .from('tickets_reviewed')
+  .select('*, Tickets(Subject, Description, "Resolution Note", Status)')
+  .eq('id', id)
+  .single();
+
+if (error || !review) {
+  return Astro.redirect('/ticket-analysis/reviewed');
+}
+
+// Parse matched documents if it's a string
+let matchedDocs = [];
+if (review.matched_documents) {
+  matchedDocs = typeof review.matched_documents === 'string'
+    ? JSON.parse(review.matched_documents)
+    : review.matched_documents;
+}
+
+// Parse searches array if it's a string
+let searches = [];
+if (review.searches) {
+  searches = typeof review.searches === 'string'
+    ? JSON.parse(review.searches)
+    : (Array.isArray(review.searches) ? review.searches : []);
+}
+
+// Fetch related tickets if they exist
+let relatedTickets = [];
+if (review.related_ticket_ids && Array.isArray(review.related_ticket_ids) && review.related_ticket_ids.length > 0) {
+  const { data } = await supabase
+    .from('Tickets')
+    .select('"Ticket Id", Subject, Status')
+    .in('Ticket Id', review.related_ticket_ids);
+  relatedTickets = data || [];
+}
+
+// Check if there's a recommendation for this ticket
+const { data: recommendation } = await supabase
+  .from('ticket_kb_content_recommendations')
+  .select('id, recommendation_title, status, priority')
+  .eq('ticket_id', review.ticket_id)
+  .maybeSingle();
+---
+
+<Layout title={`Review #${review.ticket_id}`}>
+  <Header current="ticket-analysis" />
+
+  <main class="max-w-4xl mx-auto px-6">
+    <!-- Back Button -->
+    <div class="mb-6">
+      <a href="/ticket-analysis/reviewed" class="text-sm text-gray-500 hover:text-gray-900">
+        ← Back to Reviewed Tickets
+      </a>
+    </div>
+
+    <!-- Header Section -->
+    <div class="mb-8">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h1 class="text-4xl font-semibold tracking-tight mb-2">
+            Ticket #{review.ticket_id}
+          </h1>
+          <p class="text-lg text-gray-700">{review.Tickets?.Subject || 'No subject'}</p>
+        </div>
+        <HitMissBadge hit={review.kb_hit} />
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4 mb-6">
+        <div class="p-4 bg-gray-50 rounded-md">
+          <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Slug</div>
+          <div class="font-mono text-sm">{review.slug}</div>
+        </div>
+        <div class="p-4 bg-gray-50 rounded-md">
+          <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Reviewed Date</div>
+          <div class="text-sm">{new Date(review.created_at).toLocaleString()}</div>
+        </div>
+        <div class="p-4 bg-gray-50 rounded-md">
+          <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Searches Performed</div>
+          <div class="text-2xl font-semibold">{review.searches_performed || 0}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recommendation Link (if MISS) -->
+    {!review.kb_hit && recommendation && (
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="font-semibold text-blue-900 mb-1">KB Recommendation Available</h3>
+            <p class="text-sm text-blue-700 mb-2">{recommendation.recommendation_title}</p>
+          </div>
+          <a
+            href={`/ticket-analysis/recommendations/${recommendation.id}`}
+            class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors"
+          >
+            View Recommendation
+          </a>
+        </div>
+      </div>
+    )}
+
+    <!-- Related Tickets Section -->
+    {relatedTickets.length > 0 && (
+      <section class="mb-8">
+        <div class="bg-white border border-gray-200 rounded-lg p-6">
+          <h2 class="text-xl font-semibold mb-4">Related Tickets ({relatedTickets.length})</h2>
+          <div class="space-y-2">
+            {relatedTickets.map((ticket: any) => (
+              <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                <div>
+                  <span class="font-mono text-sm font-medium">#{ticket['Ticket Id']}</span>
+                  <span class="text-sm text-gray-600 ml-3">{ticket.Subject}</span>
+                </div>
+                <span class="text-xs text-gray-500">{ticket.Status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <!-- KB Search Results Section -->
+    {searches.length > 0 && (
+      <section class="mb-8">
+        <div class="bg-white border border-gray-200 rounded-lg p-6">
+          <h2 class="text-xl font-semibold mb-4">KB Searches Performed ({searches.length})</h2>
+          <div class="space-y-3">
+            {searches.map((search: string, index: number) => (
+              <div class="p-3 bg-gray-50 rounded font-mono text-sm">
+                <span class="text-gray-500 mr-2">{index + 1}.</span>
+                {search}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <!-- Matched Documents Section -->
+    {review.kb_hit && matchedDocs.length > 0 && (
+      <section class="mb-8">
+        <div class="bg-white border border-gray-200 rounded-lg p-6">
+          <h2 class="text-xl font-semibold mb-4">Matched KB Documents ({matchedDocs.length})</h2>
+          <div class="space-y-4">
+            {matchedDocs.map((doc: any, index: number) => (
+              <div class="border-l-4 border-green-500 pl-4 py-2">
+                <div class="flex items-start justify-between mb-2">
+                  <h3 class="font-semibold">{doc.name || doc.title || `Document ${index + 1}`}</h3>
+                  {doc.relevance && (
+                    <span class="text-xs px-2 py-1 bg-green-50 text-green-600 rounded">
+                      {doc.relevance}
+                    </span>
+                  )}
+                </div>
+                {doc.url && (
+                  <a href={doc.url} class="text-sm text-blue-600 hover:underline mb-2 block" target="_blank" rel="noopener">
+                    View Document →
+                  </a>
+                )}
+                {doc.reason && (
+                  <div class="text-sm text-gray-700 prose prose-sm max-w-none" set:html={marked.parse(doc.reason, { async: false })} />
+                )}
+                {doc.coverage_score && (
+                  <div class="text-xs text-gray-500 mt-2">Coverage Score: {doc.coverage_score}/10</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <!-- Analysis Notes Section -->
+    {review.notes && (
+      <section class="mb-8">
+        <div class="bg-white border border-gray-200 rounded-lg p-6">
+          <h2 class="text-xl font-semibold mb-4">Analysis Notes</h2>
+          <div class="prose prose-sm max-w-none" set:html={marked.parse(review.notes, { async: false })} />
+        </div>
+      </section>
+    )}
+
+    <!-- Ticket Details Section -->
+    <section class="mb-8">
+      <div class="bg-white border border-gray-200 rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">Ticket Details</h2>
+
+        {review.Tickets?.Description && (
+          <div class="mb-6">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">Description</h3>
+            <div class="p-4 bg-gray-50 rounded-md text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
+              {cleanTicketText(review.Tickets.Description)}
+            </div>
+          </div>
+        )}
+
+        {review.Tickets?.['Resolution Note'] && (
+          <div class="mb-6">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">Resolution Note</h3>
+            <div class="p-4 bg-green-50 rounded-md text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
+              {cleanTicketText(review.Tickets['Resolution Note'])}
+            </div>
+          </div>
+        )}
+
+        <div class="pt-4 border-t border-gray-200">
+          <div class="text-xs text-gray-500">
+            Status: <span class="font-medium">{review.Tickets?.Status || 'Unknown'}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</Layout>
